@@ -5,4 +5,4 @@ Currently there is only one supported argument:
 
 Future arguments are to be added.
 
-* - Period is defined by the first and the last date of data log.
+*Period is defined by the first and the last date of data log.
