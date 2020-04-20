@@ -1,0 +1,144 @@
+#!/usr/bin/env python
+from os import stat
+from datetime import datetime
+from sys import argv
+from pathlib import Path
+
+
+# Paths for output and required rx/tx files. Output file can be adjusted.
+log_path = str(Path.home()) + '/Documents/netLog/net_log.txt'
+rx_path = '/sys/class/net/eno1/statistics/rx_bytes'
+tx_path = '/sys/class/net/eno1/statistics/tx_bytes'
+
+# No. lines of received/sent sums and period
+PERIOD_SUM_LINE = 3
+RECEIVED_SUM_LINE = 6
+TRANSMITTED_SUM_LINE = 8
+
+
+def create_template(current_date, file):
+    """Creates template of file if such file doesn't exist"""
+
+    file.write("MBytes / GBytes\n\n")
+    file.write("#"*20 + "\nPeriod: " +
+               f"{current_date} - {current_date}\n" + "#"*20)
+    file.write("\nReceived during period:\n0 / 0\n")
+    file.write("Transmitted during period:\n0 / 0\n\n")
+
+
+def update_sum(current_date, rx_mgbytes, tx_mgbytes):
+    with open(log_path, 'r') as log_file:
+        lines = log_file.readlines()
+
+    period = lines[PERIOD_SUM_LINE].rstrip('\n')
+    rx = lines[RECEIVED_SUM_LINE].rstrip('\n')
+    tx = lines[TRANSMITTED_SUM_LINE].rstrip('\n')
+
+    # Processing received/transmitted bytes
+    rx_mbyte, rx_gbyte = rx_mgbytes
+    tx_mbyte, tx_gbyte = tx_mgbytes
+
+    rx = list(map(float, rx.split(' / ')))
+    tx = list(map(float, tx.split(' / ')))
+
+    rx[0], rx[1] = (round(rx[0] + rx_mbyte, 3),
+                    round(rx[1] + rx_gbyte, 3))
+    tx[0], tx[1] = (round(tx[0] + tx_mbyte, 3),
+                    round(tx[1] + tx_gbyte, 3))
+
+    rx = ' / '.join(list(map(str, rx))) + '\n'
+    tx = ' / '.join(list(map(str, tx))) + '\n'
+
+    lines[RECEIVED_SUM_LINE], lines[TRANSMITTED_SUM_LINE] = rx, tx
+
+    # Processing time period
+    period = period.split(' - ')
+    period[1] = current_date
+    period = ' - '.join(period) + '\n'
+
+    lines[PERIOD_SUM_LINE] = period
+
+    # Writing processed lines to file
+    with open(log_path, 'w') as log_file:
+        log_file.writelines(lines)
+
+
+def log():
+    """Logs current usage of bytes and updates sum"""
+
+    current_date = datetime.today().strftime("%d-%m-%Y")
+    current_time = datetime.today().time().strftime("%H:%M")
+
+    rx_mgbytes = []
+    tx_mgbytes = []
+
+    with open(rx_path, 'r') as rx_file, \
+            open(tx_path, 'r') as tx_file, \
+            open(log_path, 'a+') as out_file:
+
+        rx_bytes = int(rx_file.read())
+        tx_bytes = int(tx_file.read())
+
+        if stat(log_path).st_size == 0:
+            create_template(current_date, out_file)
+
+        out_file.write("#"*16 + f"\nLogged: {current_date} - {current_time}\n"
+                       + "#"*16 + "\n")
+
+        out_file.write("Received:\n")
+
+        rx_mbytes = round(rx_bytes / 1024**2, 3)
+        rx_gbytes = round(rx_mbytes / 1024, 3)
+
+        rx_mgbytes.extend([rx_mbytes, rx_gbytes])
+
+        out_file.write(str(rx_mbytes) + " / " + str(rx_gbytes) + "\n")
+        out_file.write("Transmitted:\n")
+
+        tx_mbytes = round(tx_bytes / 1024**2, 3)
+        tx_gbytes = round(tx_mbytes / 1024, 3)
+
+        tx_mgbytes.extend([tx_mbytes, tx_gbytes])
+
+        out_file.write(str(tx_mbytes) + " / " + str(tx_gbytes) + "\n\n")
+
+    update_sum(current_date, rx_mgbytes, tx_mgbytes)
+
+
+def print_sum():
+    """Prints network usage during period (only in GB right now)"""
+
+    with open(log_path, 'r') as log_file:
+        lines = log_file.readlines()
+
+    period = lines[PERIOD_SUM_LINE].rstrip('\n')
+    rx = lines[RECEIVED_SUM_LINE].rstrip('\n')
+    tx = lines[TRANSMITTED_SUM_LINE].rstrip('\n')
+
+    period = period.split('Period: ')[1]
+    rx_mbyte, rx_gbyte = rx.split(' / ')
+    tx_mbyte, tx_gbyte = tx.split(' / ')
+
+    print(f"\nDuring a period of {period}:\n"
+          + f"Total received: {rx_gbyte} GB\n"
+          + f"Total transmitted: {tx_gbyte} GB\n")
+
+
+if __name__ == "__main__":
+    # Currently supporting only '-s' for displaying sum value in logged period.
+    arguments = argv[1:]
+
+    if len(arguments) == 0:
+        try:
+            log()
+        except OSError:
+            print("Unidentifed error! RX/TX byte files might not exist!")
+    else:
+        for arg in arguments:
+            if arg == '-s':
+                try:
+                    print_sum()
+                except OSError:
+                    print("Nothing logged yet!")
+            else:
+                print("Invalid arugment!")
