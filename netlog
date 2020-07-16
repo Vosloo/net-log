@@ -3,11 +3,12 @@ from os import stat
 from datetime import datetime
 from sys import argv
 from pathlib import Path
-from config import read_config, reset_config
 
 
 # Paths for output and required rx/tx files. Output file can be adjusted.
 log_path = str(Path.home()) + '/Documents/netLog/net_log.txt'
+rx_path = '/sys/class/net/eno1/statistics/rx_bytes'
+tx_path = '/sys/class/net/eno1/statistics/tx_bytes'
 
 # No. lines of received/sent sums and period
 PERIOD_SUM_LINE = 3
@@ -15,7 +16,7 @@ RECEIVED_SUM_LINE = 6
 TRANSMITTED_SUM_LINE = 8
 
 
-def _create_template(current_date, file):
+def create_template(current_date, file):
     """Creates template of file if such file doesn't exist"""
 
     file.write("MBytes / GBytes\n\n")
@@ -25,7 +26,7 @@ def _create_template(current_date, file):
     file.write("Transmitted during period:\n0 / 0\n\n")
 
 
-def _update_sum(current_date, rx_mgbytes, tx_mgbytes):
+def update_sum(current_date, rx_mgbytes, tx_mgbytes):
     with open(log_path, 'r') as log_file:
         lines = log_file.readlines()
 
@@ -61,16 +62,9 @@ def _update_sum(current_date, rx_mgbytes, tx_mgbytes):
     with open(log_path, 'w') as log_file:
         log_file.writelines(lines)
 
-    print("Log successful!")
-
-
-def _read_config():
-    return read_config()
-
 
 def log():
     """Logs current usage of bytes and updates sum"""
-    rx_path, tx_path = _read_config()
 
     current_date = datetime.today().strftime("%d-%m-%Y")
     current_time = datetime.today().time().strftime("%H:%M")
@@ -86,7 +80,7 @@ def log():
         tx_bytes = int(tx_file.read())
 
         if stat(log_path).st_size == 0:
-            _create_template(current_date, out_file)
+            create_template(current_date, out_file)
 
         out_file.write("#"*16 + f"\nLogged: {current_date} - {current_time}\n"
                        + "#"*16 + "\n")
@@ -108,7 +102,7 @@ def log():
 
         out_file.write(str(tx_mbytes) + " / " + str(tx_gbytes) + "\n\n")
 
-    _update_sum(current_date, rx_mgbytes, tx_mgbytes)
+    update_sum(current_date, rx_mgbytes, tx_mgbytes)
 
 
 def print_sum():
@@ -135,11 +129,10 @@ if __name__ == "__main__":
     arguments = argv[1:]
 
     if len(arguments) == 0:
-        log()
-        # try:
-        #     log()
-        # except OSError:
-        #     print("Unidentifed error! RX/TX byte files might not exist!")
+        try:
+            log()
+        except OSError:
+            print("Unidentifed error! RX/TX byte files might not exist!")
     else:
         for arg in arguments:
             if arg == '-s':
@@ -147,7 +140,5 @@ if __name__ == "__main__":
                     print_sum()
                 except OSError:
                     print("Nothing logged yet!")
-            elif arg == '--config-reset':
-                reset_config()
             else:
                 print("Invalid arugment!")
