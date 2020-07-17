@@ -41,11 +41,10 @@ def reset_config():
             suitable[dev] = None
 
     if not suitable:
-        print(
+        raise Exception(
             "Could not find any suitable devices!\n" +
             "Please check your internet connection!"
         )
-        return
 
     for dev in suitable:
         if any('wireless' in str(file) for file in dev.iterdir()):
@@ -93,11 +92,7 @@ def read_config():
         break
     else:
         # Path section not found!
-        print(
-            "Path section not found within config file!\n" +
-            'Rerun with "--config-reset" to create new config file!'
-        )
-        return
+        return Exception("Path section not found within config file!")
 
     rx_path, tx_path = None, None
     for i in range(ind + 1, len(lines)):
@@ -115,11 +110,10 @@ def read_config():
             break
     else:
         # Paths for RX/TX not found!
-        print(
+        raise Exception(
             "Paths for RX/TX files not found within config file!\n" +
             'Rerun with "--config-reset" to create new config file!'
         )
-        return
 
     return (rx_path, tx_path)
 

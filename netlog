@@ -1,7 +1,7 @@
 #!/usr/bin/env python
+import argparse
 from os import stat
 from datetime import datetime
-from sys import argv
 from pathlib import Path
 from config import read_config, reset_config
 
@@ -64,13 +64,9 @@ def _update_sum(current_date, rx_mgbytes, tx_mgbytes):
     print("Log successful!")
 
 
-def _read_config():
-    return read_config()
-
-
 def log():
     """Logs current usage of bytes and updates sum"""
-    rx_path, tx_path = _read_config()
+    rx_path, tx_path = read_config()
 
     current_date = datetime.today().strftime("%d-%m-%Y")
     current_time = datetime.today().time().strftime("%H:%M")
@@ -130,24 +126,42 @@ def print_sum():
           + f"Total transmitted: {tx_gbyte} GB\n")
 
 
-if __name__ == "__main__":
-    # Currently supporting only '-s' for displaying sum value in logged period.
-    arguments = argv[1:]
+def add_arguments(parser):
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "-s",
+        "--sum",
+        dest="sum",
+        action="store_true",
+        help="prints the sum of data usage in a usage period"
+    )
+    group.add_argument(
+        "--config-reset",
+        dest="config_reset",
+        action="store_true",
+        help="runs configuration file setup."
+    )
 
-    if len(arguments) == 0:
-        log()
-        # try:
-        #     log()
-        # except OSError:
-        #     print("Unidentifed error! RX/TX byte files might not exist!")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Script for logging network data usage."
+    )
+
+    add_arguments(parser)
+
+    arguments = parser.parse_args()
+    if arguments.sum:
+        try:
+            print_sum()
+        except OSError:
+            print("Nothing logged yet!")
+    elif arguments.config_reset:
+        reset_config()
     else:
-        for arg in arguments:
-            if arg == '-s':
-                try:
-                    print_sum()
-                except OSError:
-                    print("Nothing logged yet!")
-            elif arg == '--config-reset':
-                reset_config()
-            else:
-                print("Invalid arugment!")
+        try:
+            log()
+        except OSError:
+            print("Unidentifed error! RX/TX byte files might not exist!")
+        except Exception as ex:
+            print(ex)
