@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 import argparse
 from os import stat
-from datetime import datetime
+from subprocess import run
+from datetime import datetime, date
 from pathlib import Path
+import subprocess
 from config import read_config, reset_config
 
 
@@ -107,8 +109,21 @@ def log():
     _update_sum(current_date, rx_mgbytes, tx_mgbytes)
 
 
+def _get_days_passed(period):
+    first, last = period.split(' - ')
+
+    fday, fmonth, fyear = list(map(int, first.split('-')))
+    lday, lmonth, lyear = list(map(int, last.split('-')))
+
+    first = date(fyear, fmonth, fday)
+    last = date(lyear, lmonth, lday)
+
+    days = (last - first).days
+    return days
+
+
 def print_sum():
-    """Prints network usage during period (only in GB right now)"""
+    """Prints network data usage during period (only in GB right now)"""
 
     with open(log_path, 'r') as log_file:
         lines = log_file.readlines()
@@ -118,12 +133,40 @@ def print_sum():
     tx = lines[TRANSMITTED_SUM_LINE].rstrip('\n')
 
     period = period.split('Period: ')[1]
+    days = _get_days_passed(period)
     rx_mbyte, rx_gbyte = rx.split(' / ')
     tx_mbyte, tx_gbyte = tx.split(' / ')
 
-    print(f"\nDuring a period of {period}:\n"
-          + f"Total received: {rx_gbyte} GB\n"
-          + f"Total transmitted: {tx_gbyte} GB\n")
+    print(
+        f"\nDuring a period of {period} ({days} days):\n" +
+        f"Total data received: {rx_gbyte} GB\n" +
+        f"Total data transmitted: {tx_gbyte} GB\n"
+    )
+
+
+def print_current():
+    """Prints network data usage since last reboot"""
+
+    rx_path, tx_path = read_config()
+    with open(rx_path, 'r') as rx, \
+            open(tx_path, 'r') as tx:
+
+        rx_bytes = int(rx.read())
+        tx_bytes = int(tx.read())
+
+    rx_gbytes = round(rx_bytes / 1024**3, 3)
+    tx_gbytes = round(tx_bytes / 1024**3, 3)
+
+    # Run uptime command and capture its output
+    uptime = run(["uptime", "-s"], stdout=subprocess.PIPE)
+    # Decode from bytes to string stripping for new line char
+    uptime = uptime.stdout.decode('utf-8').rstrip()
+
+    print(
+        f"\nSince {uptime}:\n" +
+        f"Total data received: {rx_gbytes} GB\n" +
+        f"Total data transmitted: {tx_gbytes} GB\n"
+    )
 
 
 def add_arguments(parser):
@@ -140,6 +183,13 @@ def add_arguments(parser):
         dest="config_reset",
         action="store_true",
         help="runs configuration file setup."
+    )
+    group.add_argument(
+        "-c",
+        "--current",
+        dest="cur",
+        action="store_true",
+        help="displays data usage since last reboot without logging"
     )
 
 
@@ -158,6 +208,8 @@ if __name__ == "__main__":
             print("Nothing logged yet!")
     elif arguments.config_reset:
         reset_config()
+    elif arguments.cur:
+        print_current()
     else:
         try:
             log()
