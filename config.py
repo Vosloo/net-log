@@ -1,6 +1,6 @@
 from pathlib import Path
 
-config_path = str(Path.home()) + '/Documents/netLog/netlog-config.ini'
+config_path = str(Path.home()) + '/Documents/netlog/netlog-config.ini'
 path_section = '[paths]'
 device_section = '[device]'
 
@@ -12,6 +12,7 @@ tx_file = '/statistics/tx_bytes'
 
 
 def create_config(dev, dev_type):
+    """Creates config file"""
     lines = [
         device_section + '\n',
         '; device info\n',
@@ -29,6 +30,7 @@ def create_config(dev, dev_type):
 
 
 def reset_config():
+    """Setups data for new config file with suitable device"""
     # Find suitable devices for rx/tx files
     net = Path(net_path)
 
@@ -78,6 +80,7 @@ def reset_config():
 
 
 def read_config():
+    """Reads configuration file if exists"""
     if not Path(config_path).exists():
         print("No config file! Creating new one.")
         reset_config()

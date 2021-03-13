@@ -1,15 +1,22 @@
 #!/usr/bin/env python
 import argparse
-from os import stat
+import subprocess
+from os import stat, rmdir
+from shutil import move
+from pathlib import Path
 from subprocess import run
 from datetime import datetime, date
-from pathlib import Path
-import subprocess
 from config import read_config, reset_config
 
 
-# Paths for output and required rx/tx files. Output file can be adjusted.
-log_path = str(Path.home()) + '/Documents/netLog/net_log.txt'
+# Path for loggin directory
+log_dir = str(Path.home()) + '/Documents/netlog/'
+
+# Name of log file inside log_dir
+log_name = 'net_log.txt'
+
+# Old directory path used by netlog
+old_dir_path = str(Path.home()) + '/Documents/netLog/'
 
 # No. lines of received/sent sums and period
 PERIOD_SUM_LINE = 3
@@ -28,7 +35,7 @@ def _create_template(current_date, file):
 
 
 def _update_sum(current_date, rx_mgbytes, tx_mgbytes):
-    with open(log_path, 'r') as log_file:
+    with open(log_dir + log_name, 'r') as log_file:
         lines = log_file.readlines()
 
     period = lines[PERIOD_SUM_LINE].rstrip('\n')
@@ -60,7 +67,7 @@ def _update_sum(current_date, rx_mgbytes, tx_mgbytes):
     lines[PERIOD_SUM_LINE] = period
 
     # Writing processed lines to file
-    with open(log_path, 'w') as log_file:
+    with open(log_dir + log_name, 'w') as log_file:
         log_file.writelines(lines)
 
     print("Log successful!")
@@ -78,12 +85,12 @@ def log():
 
     with open(rx_path, 'r') as rx_file, \
             open(tx_path, 'r') as tx_file, \
-            open(log_path, 'a+') as out_file:
+            open(log_dir + log_name, 'a+') as out_file:
 
         rx_bytes = int(rx_file.read())
         tx_bytes = int(tx_file.read())
 
-        if stat(log_path).st_size == 0:
+        if stat(log_dir + log_name).st_size == 0:
             _create_template(current_date, out_file)
 
         out_file.write("#"*16 + f"\nLogged: {current_date} - {current_time}\n"
@@ -118,14 +125,52 @@ def _get_days_passed(period):
     first = date(fyear, fmonth, fday)
     last = date(lyear, lmonth, lday)
 
-    days = (last - first).days
+    days = (last - first).days + 1  # Start counting from 1.
     return days
+
+
+def check_old_dir() -> bool:
+    """
+    Checks for old directory name and copies content over to new one if exists
+    returning True if copied or non-existent, False otherwise
+    """
+    old_dir = Path(old_dir_path)
+    if old_dir.exists() and old_dir.is_dir():
+        print(
+            "\nOld netlog directory detected! ('netLog/')\n" +
+            "Netlog now uses 'netlog/' directory inside Documents/.\n" +
+            "Do You want to copy files to the new directory?\n" +
+            "[y/n]: ", end=''
+        )
+        while True:
+            answer = input()
+            if answer in ('y', 'yes'):
+                # Moves content of old dir to the new one
+                for child in old_dir.iterdir():
+                    move(str(child), log_dir)
+
+                # Removes old directory
+                rmdir(old_dir)
+                
+                return True
+
+            elif answer in ('n', 'no'):
+                print("Aborting!")
+                return False
+
+            else:
+                print(
+                    "Invalid answer!\n" +
+                    "[y/n]: ", end=''
+                )
+    
+    return True
 
 
 def print_sum():
     """Prints network data usage during period (only in GB right now)"""
 
-    with open(log_path, 'r') as log_file:
+    with open(log_dir + log_name, 'r') as log_file:
         lines = log_file.readlines()
 
     period = lines[PERIOD_SUM_LINE].rstrip('\n')
@@ -137,8 +182,9 @@ def print_sum():
     rx_mbyte, rx_gbyte = rx.split(' / ')
     tx_mbyte, tx_gbyte = tx.split(' / ')
 
+    multiple_days = "s" if days > 1 else ""
     print(
-        f"\nDuring a period of {period} ({days} days):\n" +
+        f"\nDuring a period of {period} ({days} day{multiple_days}):\n" +
         f"Total data received: {rx_gbyte} GB\n" +
         f"Total data transmitted: {tx_gbyte} GB\n"
     )
@@ -200,6 +246,9 @@ if __name__ == "__main__":
 
     add_arguments(parser)
 
+    # Checks for any old versions of netlog's directory
+    proceed = check_old_dir()
+
     arguments = parser.parse_args()
     if arguments.sum:
         try:
@@ -212,7 +261,10 @@ if __name__ == "__main__":
         print_current()
     else:
         try:
-            log()
+            if proceed:
+                log()
+            else:
+                print("Cannot log new values until old directory exists!")
         except OSError:
             print("Unidentifed error! RX/TX byte files might not exist!")
         except Exception as ex:
