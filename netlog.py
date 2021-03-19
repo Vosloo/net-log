@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 import argparse
 import subprocess
-from os import stat, rmdir
-from shutil import move
+from datetime import date, datetime
+from os import mkdir, rmdir, stat
 from pathlib import Path
+from shutil import move
 from subprocess import run
-from datetime import datetime, date
-from config import read_config, reset_config
 
+from config import read_config, reset_config
 
 # Path for loggin directory
 log_dir = str(Path.home()) + '/Documents/netlog/'
@@ -135,6 +135,7 @@ def check_old_dir() -> bool:
     returning True if copied or non-existent, False otherwise
     """
     old_dir = Path(old_dir_path)
+    new_dir = Path(log_dir)
     if old_dir.exists() and old_dir.is_dir():
         print(
             "\nOld netlog directory detected! ('netLog/')\n" +
@@ -145,6 +146,16 @@ def check_old_dir() -> bool:
         while True:
             answer = input()
             if answer in ('y', 'yes'):
+                # Create new directory if does not exist
+                if not new_dir.exists():
+                    mkdir(new_dir)
+                elif new_dir.is_file():
+                    print(
+                        f"{new_dir} is a file! Please resolve the issue manually."
+                    )
+                    print("Aborting!")
+                    return False
+
                 # Moves content of old dir to the new one
                 for child in old_dir.iterdir():
                     move(str(child), log_dir)

@@ -1,6 +1,9 @@
 from pathlib import Path
+from os import mkdir
 
-config_path = str(Path.home()) + '/Documents/netlog/netlog-config.ini'
+log_dir = str(Path.home()) + '/Documents/netlog/'
+config_file = 'netlog-config.ini'
+
 path_section = '[paths]'
 device_section = '[device]'
 
@@ -25,8 +28,21 @@ def create_config(dev, dev_type):
         f"tx = {str(dev)}{tx_file}\n"
     ]
 
-    with open(config_path, 'w') as cfile:
+    path_log = Path(log_dir)
+    # Create new directory if does not exist
+    if not path_log.exists():
+        mkdir(path_log)
+    elif path_log.is_file():
+        print(
+            f"{path_log} is a file! Please resolve the issue manually."
+        )
+        print("Aborting!")
+        return False
+
+    with open(log_dir + config_file, 'w+') as cfile:
         cfile.writelines(lines)
+    
+    return True
 
 
 def reset_config():
@@ -36,7 +52,7 @@ def reset_config():
 
     suitable = {}
     for dev in net.iterdir():
-        with open(str(dev) + operstate_file) as opfile:
+        with open(str(dev) + operstate_file, 'r') as opfile:
             state = opfile.readline().rstrip()
 
         if state == 'up':
@@ -75,17 +91,18 @@ def reset_config():
         f"{dev.name}: {dev_type}"
     )
 
-    create_config(dev, dev_type)
-    print(f"Config file created successfully in {config_path}!")
+    created = create_config(dev, dev_type)
+    if created:
+        print(f"Config file created successfully in {log_dir + config_file}!")
 
 
 def read_config():
     """Reads configuration file if exists"""
-    if not Path(config_path).exists():
+    if not Path(log_dir + config_file).exists():
         print("No config file! Creating new one.")
         reset_config()
 
-    with open(config_path, 'r') as cfile:
+    with open(log_dir + config_file, 'r') as cfile:
         lines = cfile.readlines()
         lines = [line.rstrip() for line in lines]
 
@@ -109,6 +126,7 @@ def read_config():
         if 'tx' in cur_line:
             tx_path = cur_line.split(' = ')[1]
 
+        # RX/TX paths found
         if rx_path and tx_path:
             break
     else:
