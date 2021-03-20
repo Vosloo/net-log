@@ -18,12 +18,14 @@ log_name = 'net_log.txt'
 # Old directory path used by netlog
 old_dir_path = str(Path.home()) + '/Documents/netLog/'
 
+# TODO: Remove hardcoded values
 # No. lines of received/sent sums and period
 PERIOD_SUM_LINE = 3
 RECEIVED_SUM_LINE = 6
 TRANSMITTED_SUM_LINE = 8
 
 
+# TODO: Rewrite template and log file overall storage structure (in checks.py probably)
 def _create_template(current_date, file):
     """Creates template of file if such file doesn't exist"""
 
@@ -93,8 +95,11 @@ def log():
         if stat(log_dir + log_name).st_size == 0:
             _create_template(current_date, out_file)
 
-        out_file.write("#"*16 + f"\nLogged: {current_date} - {current_time}\n"
-                       + "#"*16 + "\n")
+        out_file.write(
+            "#"*16 +
+            f"\nLogged: {current_date} - {current_time}\n" +
+            "#"*16 + "\n"
+        )
 
         out_file.write("Received:\n")
 
@@ -162,7 +167,7 @@ def check_old_dir() -> bool:
 
                 # Removes old directory
                 rmdir(old_dir)
-                
+
                 return True
 
             elif answer in ('n', 'no'):
@@ -174,7 +179,7 @@ def check_old_dir() -> bool:
                     "Invalid answer!\n" +
                     "[y/n]: ", end=''
                 )
-    
+
     return True
 
 

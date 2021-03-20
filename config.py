@@ -1,5 +1,5 @@
-from pathlib import Path
 from os import mkdir
+from pathlib import Path
 
 log_dir = str(Path.home()) + '/Documents/netlog/'
 config_file = 'netlog-config.ini'
@@ -14,8 +14,10 @@ rx_file = '/statistics/rx_bytes'
 tx_file = '/statistics/tx_bytes'
 
 
+# TODO: Rewrite creating config files with configparser module
 def create_config(dev, dev_type):
     """Creates config file"""
+    # TODO: Add paths for log_dir, log_file
     lines = [
         device_section + '\n',
         '; device info\n',
@@ -41,7 +43,7 @@ def create_config(dev, dev_type):
 
     with open(log_dir + config_file, 'w+') as cfile:
         cfile.writelines(lines)
-    
+
     return True
 
 
@@ -98,6 +100,7 @@ def reset_config():
 
 def read_config():
     """Reads configuration file if exists"""
+    # TODO: Add support for multiple devices? Ethernet / wi-fi
     if not Path(log_dir + config_file).exists():
         print("No config file! Creating new one.")
         reset_config()
@@ -140,4 +143,4 @@ def read_config():
 
 
 if __name__ == "__main__":
-    read_config()
+    print(read_config())
