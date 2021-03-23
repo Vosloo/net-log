@@ -1,22 +1,19 @@
 #!/usr/bin/env python
 import argparse
 import subprocess
+from configparser import NoOptionError, NoSectionError
 from datetime import date, datetime
-from os import mkdir, rmdir, stat
+from os import stat
 from pathlib import Path
-from shutil import move
 from subprocess import run
 
+from checks import check_old_dir, checks
 from config import read_config, reset_config
 
-# Path for loggin directory
-log_dir = str(Path.home()) + '/Documents/netlog/'
+# Paths for log file
+out_dir = str(Path.home()) + '/Documents/netlog/'
+out_file = 'net_log.txt'
 
-# Name of log file inside log_dir
-log_name = 'net_log.txt'
-
-# Old directory path used by netlog
-old_dir_path = str(Path.home()) + '/Documents/netLog/'
 
 # TODO: Remove hardcoded values
 # No. lines of received/sent sums and period
@@ -37,7 +34,7 @@ def _create_template(current_date, file):
 
 
 def _update_sum(current_date, rx_mgbytes, tx_mgbytes):
-    with open(log_dir + log_name, 'r') as log_file:
+    with open(out_dir + out_file, 'r') as log_file:
         lines = log_file.readlines()
 
     period = lines[PERIOD_SUM_LINE].rstrip('\n')
@@ -69,7 +66,7 @@ def _update_sum(current_date, rx_mgbytes, tx_mgbytes):
     lines[PERIOD_SUM_LINE] = period
 
     # Writing processed lines to file
-    with open(log_dir + log_name, 'w') as log_file:
+    with open(out_dir + out_file, 'w') as log_file:
         log_file.writelines(lines)
 
     print("Log successful!")
@@ -77,7 +74,15 @@ def _update_sum(current_date, rx_mgbytes, tx_mgbytes):
 
 def log():
     """Logs current usage of bytes and updates sum"""
-    rx_path, tx_path = read_config()
+    try:
+        rx_path, tx_path = read_config()
+    except NoSectionError:
+        # Path section not found!
+        print(
+            "Section 'paths' could not be found within config file!\n" +
+            "Rerun with '--config-reset' to create new config file!"
+        )
+        return
 
     current_date = datetime.today().strftime("%d-%m-%Y")
     current_time = datetime.today().time().strftime("%H:%M")
@@ -87,41 +92,41 @@ def log():
 
     with open(rx_path, 'r') as rx_file, \
             open(tx_path, 'r') as tx_file, \
-            open(log_dir + log_name, 'a+') as out_file:
+            open(out_dir + out_file, 'a+') as flog:
 
         rx_bytes = int(rx_file.read())
         tx_bytes = int(tx_file.read())
 
-        if stat(log_dir + log_name).st_size == 0:
-            _create_template(current_date, out_file)
+        if stat(out_dir + out_file).st_size == 0:
+            _create_template(current_date, flog)
 
-        out_file.write(
+        flog.write(
             "#"*16 +
             f"\nLogged: {current_date} - {current_time}\n" +
             "#"*16 + "\n"
         )
 
-        out_file.write("Received:\n")
+        flog.write("Received:\n")
 
         rx_mbytes = round(rx_bytes / 1024**2, 3)
         rx_gbytes = round(rx_mbytes / 1024, 3)
 
         rx_mgbytes.extend([rx_mbytes, rx_gbytes])
 
-        out_file.write(str(rx_mbytes) + " / " + str(rx_gbytes) + "\n")
-        out_file.write("Transmitted:\n")
+        flog.write(str(rx_mbytes) + " / " + str(rx_gbytes) + "\n")
+        flog.write("Transmitted:\n")
 
         tx_mbytes = round(tx_bytes / 1024**2, 3)
         tx_gbytes = round(tx_mbytes / 1024, 3)
 
         tx_mgbytes.extend([tx_mbytes, tx_gbytes])
 
-        out_file.write(str(tx_mbytes) + " / " + str(tx_gbytes) + "\n\n")
+        flog.write(str(tx_mbytes) + " / " + str(tx_gbytes) + "\n\n")
 
     _update_sum(current_date, rx_mgbytes, tx_mgbytes)
 
 
-def _get_days_passed(period):
+def _get_days_passed(period) -> int:
     first, last = period.split(' - ')
 
     fday, fmonth, fyear = list(map(int, first.split('-')))
@@ -134,59 +139,11 @@ def _get_days_passed(period):
     return days
 
 
-def check_old_dir() -> bool:
-    """
-    Checks for old directory name and copies content over to new one if exists
-    returning True if copied or non-existent, False otherwise
-    """
-    old_dir = Path(old_dir_path)
-    new_dir = Path(log_dir)
-    if old_dir.exists() and old_dir.is_dir():
-        print(
-            "\nOld netlog directory detected! ('netLog/')\n" +
-            "Netlog now uses 'netlog/' directory inside Documents/.\n" +
-            "Do You want to copy files to the new directory?\n" +
-            "[y/n]: ", end=''
-        )
-        while True:
-            answer = input()
-            if answer in ('y', 'yes'):
-                # Create new directory if does not exist
-                if not new_dir.exists():
-                    mkdir(new_dir)
-                elif new_dir.is_file():
-                    print(
-                        f"{new_dir} is a file! Please resolve the issue manually."
-                    )
-                    print("Aborting!")
-                    return False
-
-                # Moves content of old dir to the new one
-                for child in old_dir.iterdir():
-                    move(str(child), log_dir)
-
-                # Removes old directory
-                rmdir(old_dir)
-
-                return True
-
-            elif answer in ('n', 'no'):
-                print("Aborting!")
-                return False
-
-            else:
-                print(
-                    "Invalid answer!\n" +
-                    "[y/n]: ", end=''
-                )
-
-    return True
-
-
+# TODO: Add support for different units dispalyed (MB etc.)
 def print_sum():
     """Prints network data usage during period (only in GB right now)"""
 
-    with open(log_dir + log_name, 'r') as log_file:
+    with open(out_dir + out_file, 'r') as log_file:
         lines = log_file.readlines()
 
     period = lines[PERIOD_SUM_LINE].rstrip('\n')
@@ -208,13 +165,27 @@ def print_sum():
 
 def print_current():
     """Prints network data usage since last reboot"""
+    try:
+        rx_path, tx_path = read_config()
+    except (NoSectionError, NoOptionError):
+        # Path section not found!
+        print(
+            "Paths could not be found within config file!\n" +
+            "Rerun with '--config-reset' to reset the config file!"
+        )
+        return
 
-    rx_path, tx_path = read_config()
-    with open(rx_path, 'r') as rx, \
-            open(tx_path, 'r') as tx:
-
-        rx_bytes = int(rx.read())
-        tx_bytes = int(tx.read())
+    try:
+        with open(rx_path, 'r') as rx, open(tx_path, 'r') as tx:
+            rx_bytes = int(rx.read())
+            tx_bytes = int(tx.read())
+    except FileNotFoundError:
+        # Paths for RX/TX not found!
+        print(
+            "Paths for RX/TX files not found within config file!\n" +
+            'Rerun with "--config-reset" to create new config file!'
+        )
+        return
 
     rx_gbytes = round(rx_bytes / 1024**3, 3)
     tx_gbytes = round(tx_bytes / 1024**3, 3)
@@ -263,6 +234,7 @@ if __name__ == "__main__":
     add_arguments(parser)
 
     # Checks for any old versions of netlog's directory
+    # proceed = checks()
     proceed = check_old_dir()
 
     arguments = parser.parse_args()
@@ -280,7 +252,7 @@ if __name__ == "__main__":
             if proceed:
                 log()
             else:
-                print("Cannot log new values until old directory exists!")
+                print("Cannot log new values until old files exist!")
         except OSError:
             print("Unidentifed error! RX/TX byte files might not exist!")
         except Exception as ex:
